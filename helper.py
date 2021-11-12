@@ -65,7 +65,7 @@ def move_choice(s: SokobanGame) -> list[MoveArray]:
         decision = max(utility_with_choice)
         s.update_agent(utility_with_choice[decision])
         choices.append(utility_with_choice[decision])
-        # helper.print_game(s)
+        print_game(s)
     return choices
 
 def board_index(s: SokobanGame, location: StateArray):

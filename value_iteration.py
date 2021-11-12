@@ -1,12 +1,12 @@
 # some modules from the python library
 import numpy as np
-from pathlib import Path
 # modules that should be in this directory follow
 # this line
 import sokoban_structures
 import helper
 from global_constants import *
 from custom_errors import *
+from type_hepler import *
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -14,10 +14,18 @@ def main():
 
     file = 'data/simplegame.txt'
     s = sokoban_structures.Sokoban(file)
-    new = value_iteration(s, 1E16)
+    helper.print_game(s)
+
+    ### all this does is get the utilities -- no attribute of the
+    ### game is changed besides s.utilities (the np.ndarray that has the
+    ### utilities)
+    value_iteration(s, 1E16)
+
+    # get the moves based off the utilities
     moves = helper.move_choice(s)
-    print(moves)
+    # print(moves)
     helper.print_choices(moves)
+    print(s.utilities)
 
 
 def value_iteration(s: SokobanGame, epsilon: float) -> SokobanUtilities:
@@ -66,8 +74,7 @@ def q_value(s: SokobanGame, state: StateArray,
 
 def probability(valid_actions: list, intended_action: MoveArray) -> list[float]:
     '''
-    Determines the probability of each action. Simply creates equal 
-    probabilities for each action -- nothing crazy here.
+    Determines the probability of each action. 
     '''
     if len(valid_actions) != 4:
         raise ValueError('There should be four possible actions exactly')
