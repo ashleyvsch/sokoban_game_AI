@@ -4,9 +4,11 @@ import numpy as np
 # this line
 import sokoban_structures
 import helper
+import printing
 from global_constants import *
 from custom_errors import *
 from type_hepler import *
+
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -14,17 +16,17 @@ def main():
 
     file = 'data/simplegame.txt'
     s = sokoban_structures.Sokoban(file)
-    helper.print_game(s)
+    printing.print_game(s)
 
     ### all this does is get the utilities -- no attribute of the
     ### game is changed besides s.utilities (the np.ndarray that has the
     ### utilities)
-    value_iteration(s, 1E16)
+    value_iteration(s, 1E-4)
 
     # get the moves based off the utilities
     moves = helper.move_choice(s)
     # print(moves)
-    helper.print_choices(moves)
+    printing.print_choices(moves)
     print(s.utilities)
 
 

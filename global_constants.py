@@ -4,6 +4,7 @@ Global constants defining board possibilities and actions
 
 import numpy as np
 
+INVALID = 6
 OPEN = 0
 WALL = 1
 BOX = 2

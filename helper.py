@@ -2,49 +2,6 @@ import sokoban_structures
 from global_constants import *
 from type_hepler import *
 
-# i need to create a function to write to file
-
-def print_game(gamestate: SokobanGame):
-    '''
-    Print out current game state in a visual formal
-    '''
-    # will eventually probs convert this to write file since thats what we need
-    cols = gamestate.num_cols
-    rows = gamestate.num_rows
-    for i in range(cols):
-        for j in range(rows):
-            square = gamestate.board[i,j]
-            if square == OPEN:
-                print(' ', end='')
-            elif square == WALL:
-                print('#', end='')
-            elif square == BOX:
-                print('$', end='')
-            elif square == GOAL:
-                print('.', end='')
-            elif square == AGENT:
-                print('@', end='')
-        print()
-
-def print_choices(choices: list[MoveArray]):
-    '''
-    Print a sting containg firsly the number of total moves then a sequence
-    of moves where up: 'U', down: 'D', right: 'R', left: 'L'.
-    '''
-    num_moves = len(choices)
-    final_string = str(num_moves)
-    for move in choices:
-        if np.array_equal(move, UP):
-            final_string += ' U'
-        elif np.array_equal(move, DOWN):
-            final_string += ' D'
-        elif np.array_equal(move, RIGHT):
-            final_string += ' R'
-        elif np.array_equal(move, LEFT):
-            final_string += ' L'
-        else:
-            raise ValueError('Invalid Move?? Something is very wrong')
-    print(final_string)
 
 def move_choice(s: SokobanGame) -> list[MoveArray]:
     '''

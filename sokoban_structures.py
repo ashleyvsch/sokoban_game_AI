@@ -33,7 +33,8 @@ class Sokoban:
         # in sting format
         game_size = map(int,_initial_gamestate[0].split())
         self.num_rows, self.num_cols = game_size
-        # this is the board - it is a numpy 2d array
+        # this is the board - it is a numpy 2d array initialized to all zeros and 
+        # will be filled in accordingly...
         self.board = np.zeros(shape=(self.num_rows,self.num_cols), dtype=int) 
         # these will end up being lists of np arrays where the arrays are coordinates
         self.walls = []
@@ -41,8 +42,10 @@ class Sokoban:
         self.goals = []
         # this is just a array of the agents current location
         self.agent = np.array([0,0])
-        self.rewards  = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
-        self.utilities = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
+        #----
+        # self.rewards  = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
+        # self.utilities = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
+        #----
 
         # first element of gamstate should be size of game
         self._setup_wall_squares(_initial_gamestate[1])
@@ -58,8 +61,14 @@ class Sokoban:
         self._setup_agent(_initial_gamestate[4])
         # reward are setup depending on the state of the board so it is 
         # initialized last
-        self._setup_rewards()
-        self._setup_utilities()
+        # self._setup_rewards()
+        # self._setup_utilities()
+
+        #--- for the q-learning method
+        self._valid_states = self._get_valid_states()
+        self.q_table = self._setup_q_table()
+        self.frequency_table = self._setup_frequencies()
+
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 
@@ -73,10 +82,6 @@ class Sokoban:
                 return True
             else:
                 return False
-
-    def update_utility(self, state: np.array, new_value: float):
-        self.utilities[state[0] -1][state[1]-1] = new_value
-        return self.utilities
         
     def update_agent(self, move: np.array):
         '''
@@ -100,6 +105,50 @@ class Sokoban:
     # ------ These are methods for initialization! ----------- #
     # -------- (private functions for the class) ------------- #
     # -------------------------------------------------------- #
+
+    def _get_valid_states(self) -> list:
+        ''' 
+        determines how many states are valid for the agent to move, 
+        which is really anything besides a wall and invalid space
+        '''
+        board = self.board
+        num_rows = self.num_rows
+        num_cols = self.num_cols
+        valid_states = {}
+        index = 1
+        for m in range(num_rows):
+            for n in range(num_cols):
+                if board[m][n] != WALL and board[m][n] != INVALID:
+                    valid_states[index]  = np.array([m, n])
+                    index += 1
+        return valid_states
+        
+    def _setup_q_table(self) -> np.array:
+        '''
+        setup the q-table
+        '''
+        num_valid_states = len(self._valid_states)
+        num_valid_actions = 4
+        q_table = np.zeros(shape=(num_valid_states+1, num_valid_actions+1), dtype=float)
+
+        # fill in the valid states in the first column, these are just ids
+        for i in range(1, num_valid_states + 1):
+            q_table[i][0] = i
+        for j in range(num_valid_actions + 1):
+            q_table[0][j] = j
+        return q_table
+
+    def _setup_frequencies(self) -> np.array:
+        num_valid_states = len(self._valid_states)
+        num_valid_actions = 4
+        frequency_table = np.zeros(shape=(num_valid_states+1, num_valid_actions+1), dtype=int)
+
+        # fill in the valid states in the first column, these are just ids
+        for i in range(1, num_valid_states + 1):
+            frequency_table[i][0] = i
+        for j in range(num_valid_actions + 1):
+            frequency_table[0][j] = j
+        return frequency_table
 
     def _get_game_from_file(self, file_path: str) -> list:
         '''
@@ -186,8 +235,14 @@ class Sokoban:
         x, y = agent_square
         self.board[x-1][y-1] = AGENT
         self.agent = np.array([x, y])
+
+                
+    # -------------------------------------------------------- #
+    # ------------ Not needed for Q-learning! ---------------- #
+    # -------------------------------------------------------- #
     
     def _setup_utilities(self) -> None:
+        ''' not needed for q-learning '''
         for m in range(self.num_rows):
             for n in range(self.num_cols):
                 board_index = self.board[m][n]
@@ -195,6 +250,7 @@ class Sokoban:
                     self.utilities[m][n] = np.nan
     
     def _setup_rewards(self) -> None:
+        ''' not needed for q-learning '''
         for m in range(self.num_rows):
             for n in range(self.num_cols):
                 board_index = self.board[m][n]
@@ -209,5 +265,11 @@ class Sokoban:
                 # if board_index == BOX:
                 #     self.rewards[m][n] = 0 # for now 
 
+    def update_utility(self, state: np.array, new_value: float):
+        self.utilities[state[0] -1][state[1]-1] = new_value
+        return self.utilities
+
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
+
+
