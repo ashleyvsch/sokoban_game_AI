@@ -10,6 +10,7 @@ WALL = 1
 BOX = 2
 GOAL = 3
 AGENT = 4
+BOX_ON_GOAL = 5
 
 UP = np.array([-1, 0])
 DOWN = np.array([1, 0])
