@@ -33,13 +33,11 @@ class Sokoban:
     # -------------------------------------------------------- #
     # -------------- This is setup of the board! ------------- #
     # -------------------------------------------------------- #
-        _initial_gamestate = self._get_game_from_file(path)
+        self._initial_gamestate = self._get_game_from_file(path)
         # initial_gamestate is a list where each element is a line from the file
         # in sting format
-        game_size = map(int,_initial_gamestate[0].split())
+        game_size = map(int,self._initial_gamestate[0].split())
         self.num_rows, self.num_cols = game_size
-        # this is the board - it is a numpy 2d array initialized to all zeros and 
-        # will be filled in accordingly...
         self.board = np.zeros(shape=(self.num_rows,self.num_cols), dtype=int) 
         # these will end up being lists of np arrays where the arrays are coordinates
         self.walls = []
@@ -47,23 +45,12 @@ class Sokoban:
         self.goals = []
         # this is just a array of the agents current location
         self.agent = np.array([0,0])
+
+        self.initialize_gamestate()
         #----
         # self.rewards  = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
         # self.utilities = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
         #----
-
-        # first element of gamstate should be size of game
-        self._setup_wall_squares(_initial_gamestate[1])
-        # second element of gamestate should be a list of coordinates
-        # of wall squares where the first element is the number of wall 
-        # squares
-        self._setup_boxes(_initial_gamestate[2])
-        # third element of gamestate should be a the number of boxes followed
-        # by their coordinates
-        self._setup_goal(_initial_gamestate[3])
-        # fourth element of gamestate should be the number of storage locations
-        # followed by their coordinates
-        self._setup_agent(_initial_gamestate[4])
         # reward are setup depending on the state of the board so it is 
         # initialized last
         # self._setup_rewards()
@@ -76,39 +63,107 @@ class Sokoban:
     # ----------- These are methods for updates! ------------- #
     # ---------- (public functions for the class) ------------ #
     # -------------------------------------------------------- #
-    def agent_in_goal(self) -> bool:
-        for goal in self.goals:
-            if np.array_equal(self.agent, goal):
-                return True
-            else:
-                return False
+
+    def is_terminal(self) -> bool:
+        '''
+        right now just checks for box on goal
+        '''
+        if BOX_ON_GOAL in self.board:
+            return True
+        else:
+            return False
         
-    def update_agent(self, move: np.array):
+    def move_agent(self, move: np.array):
         '''
-        Update agent using an action. The input is a direction based on matrix
+        Move agent using an action. The input is a direction based on matrix
         notation of the board (up is -1, down is 1, right is 1, left is -1). The
-        agent itself is updated and so is the board. This is meant to be used 
+        agent itself is updated but not the board!! This is meant to be used 
         when the action is decided and the move is *valid*!
+
+        To avoid complexity of an agent walking over a goal, we don't update the 
+        board with the agents location, we strictly change the agent's coordinates
         '''
-        old = self.agent
-        self.board[old[0]][old[1]] = OPEN
-        self.agent = old + move
-        new = self.agent
-        self.board[new[0]][new[1]] = AGENT
+        self.agent = self.agent + move
         return self.agent
     
+    def board_with_agent(self):
+        agent_location = self.agent
+        board_with_agent = np.copy(self.board)
+        board_with_agent[agent_location[0]][agent_location[1]] = AGENT
+        return board_with_agent
+    
+    def take_action(self, action) -> int:
+        '''
+        Change the game state based on the action
+        - Note this function wouldn't really be called if the action is stay
+        - If the agent moves to a box, we move that box. It is already checked
+          previously that the mox movement is allowed
+        - This returns an integer relating to the agents move:
+            OPEN:           moved to open space (not so good..)
+            BOX:            moved a box to an open space (good!)
+            BOX_ON_GOAL:    moved a box onto a goal (really good!)
+            GOAL:           moved a box off a goal, so not it is in a goal space (bad!) 
+        
+        '''
+        new_agent_state = self.move_agent(action)
+        
+        if self.board[new_agent_state[0]][new_agent_state[1]] == BOX:
+            self.board[new_agent_state[0]][new_agent_state[1]] = OPEN
+            new_box_location = new_agent_state + action
+            if self.board[new_box_location[0]][new_box_location[1]] == GOAL:
+                self.board[new_box_location[0]][new_box_location[1]] = BOX_ON_GOAL
+                return BOX_ON_GOAL
+            elif self.board[new_box_location[0]][new_box_location[1]] == OPEN:
+                self.board[new_box_location[0]][new_box_location[1]] = BOX
+                return BOX
+            elif self.board[new_box_location[0]][new_box_location[1]] == WALL:
+                raise BoxMoveError
+        elif self.board[new_agent_state[0]][new_agent_state[1]] == BOX_ON_GOAL:
+            self.board[new_agent_state[0]][new_agent_state[1]] = GOAL
+            new_box_location = new_agent_state + action
+            self.board[new_box_location[0]][new_box_location[1]] = BOX
+            return GOAL
+        return OPEN
+        
     def is_valid_action(self, action: np.array) -> bool:
         '''
         determines valid actions for a particular state, if an action to move is
         not valid, then the action is STAY
         '''
-        current_state = self.agent
-        state_given_action = current_state + action
-        if (self.board[state_given_action[0]][state_given_action[1]] == OPEN
-            or self.board[state_given_action[0]][state_given_action[1]] == GOAL):
-            return True
-        else: 
+        current_agent_location = self.agent
+        state_given_action = current_agent_location + action
+        state_given_action_board_value = self.board[state_given_action[0],state_given_action[1]]
+        if state_given_action_board_value == WALL:
             return False
+        elif state_given_action_board_value == OPEN:
+            return True
+        elif state_given_action_board_value == BOX:
+            resulting_box_location = current_agent_location + 2*action
+            box_state_given_action_board_value = self.board[resulting_box_location[0],resulting_box_location[1]]
+            if box_state_given_action_board_value == OPEN or box_state_given_action_board_value == GOAL:
+                return True
+            else: return False
+
+    def initialize_gamestate(self):
+        '''
+        This function is used to initialize the game state board, as well as reset the
+        board to its original state.
+        '''
+        # this is the board - it is a numpy 2d array initialized to all zeros and 
+        # will be filled in accordingly...
+        self.board = np.zeros(shape=(self.num_rows,self.num_cols), dtype=int)
+        # second element of gamestate should be a list of coordinates
+        # of wall squares where the first element is the number of wall 
+        # squares
+        self._setup_wall_squares(self._initial_gamestate[1])
+        # third element of gamestate should be a the number of boxes followed
+        # by their coordinates
+        self._setup_boxes(self._initial_gamestate[2])
+        # fourth element of gamestate should be the number of storage locations
+        # followed by their coordinates
+        self._setup_goal(self._initial_gamestate[3])
+        # fifth element is the agents location
+        self._setup_agent(self._initial_gamestate[4])
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 
@@ -200,7 +255,7 @@ class Sokoban:
         agent_square = agent_info.split()
         agent_square = map(int,agent_square)
         x, y = agent_square
-        self.board[x-1][y-1] = AGENT
+        # self.board[x-1][y-1] = AGENT
         self.agent = np.array([x-1, y-1])
 
                 
@@ -235,6 +290,13 @@ class Sokoban:
     # def update_utility(self, state: np.array, new_value: float):
     #     self.utilities[state[0] -1][state[1]-1] = new_value
     #     return self.utilities
+
+    # def agent_in_goal(self) -> bool:
+    # for goal in self.goals:
+    #     if np.array_equal(self.agent, goal):
+    #         return True
+    #     else:
+    #         return False
 
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
