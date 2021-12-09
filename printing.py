@@ -11,8 +11,8 @@ def print_game(gamestate: SokobanGame):
     cols = gamestate.num_cols
     rows = gamestate.num_rows
     board = gamestate.board_with_agent()
-    for i in range(cols):
-        for j in range(rows):
+    for i in range(rows):
+        for j in range(cols):
             square = board[i,j]
             if square == OPEN:
                 print(' ', end='')
@@ -71,19 +71,23 @@ def print_q_table(gamestate: SokobanGame):
     valid_states = gamestate._valid_states
     for i in range(1,len(valid_states)+1):
         dict[str(valid_states[i].tolist())] = gamestate.q_table[i,:]
-    print ("{:<56}".format('--------------------------------------------------------'))
-    print("{:<20} {:<24}".format(' ',' Q Table'))
-    print ("{:<56}".format('--------------------------------------------------------'))
-    print ("{:<8} {:<11} {:<11} {:<11} {:<11}".format('State','     UP','   DOWN','   LEFT','   RIGHT'))
-    print ("{:<8} {:<11} {:<11} {:<11} {:<11}".format('--------','-----------','-----------','-----------','-----------'))
+    print ("{:<100}".format('--------------------------------------------------------------------------------------------------------'))
+    print("{:<48} {:<52}".format(' ',' Q Table'))
+    print ("{:<100}".format('--------------------------------------------------------------------------------------------------------'))
+    print ("{:<8} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11}".format('State','     UP','   DOWN','  RIGHT','   LEFT', 'BOX UP', 'BOX DOWN', 'BOX RIGHT', 'BOX LEFT'))
+    print ("{:<8} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11}".format('--------','-----------','-----------','-----------','-----------', '-----------','-----------','-----------','-----------'))
     for key,item in dict.items():
-        val1 = round(item[1],2)
-        val2 = round(item[2],2)
-        val3 = round(item[3],2)
-        val4 = round(item[4],2)
+        val1 = round(item[1],4)
+        val2 = round(item[2],4)
+        val3 = round(item[3],4)
+        val4 = round(item[4],4)
+        val5 = round(item[5],4)
+        val6 = round(item[6],4)
+        val7 = round(item[7],4)
+        val8 = round(item[8],4)
         # print("{:<8} {:<11} {:<11} {:<11} {:<11}".format(key,f'{val1:.2e}',f'{val2:.2e}',f'{val3:.2e}',f'{val4:.2e}'))
-        print("{:<8} {:<11} {:<11} {:<11} {:<11}".format(key,val1,val2,val3,val4))
-    print ("{:<56}".format('--------------------------------------------------------'))
+        print("{:<8} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11} {:<11}".format(key,val1,val2,val3,val4,val5,val6,val7,val8))
+    print ("{:<100}".format('--------------------------------------------------------------------------------------------------------'))
 
 def print_frequency_table(gamestate: SokobanGame):
     '''
@@ -144,13 +148,13 @@ def print_choices(choices: list[MoveArray]):
     num_moves = len(choices)
     final_string = str(num_moves)
     for move in choices:
-        if np.array_equal(move, UP):
+        if move == 1 or move == 5:
             final_string += ' U'
-        elif np.array_equal(move, DOWN):
+        elif move == 2 or move == 6:
             final_string += ' D'
-        elif np.array_equal(move, RIGHT):
+        elif move == 3 or move == 7:
             final_string += ' R'
-        elif np.array_equal(move, LEFT):
+        elif move == 4 or move == 8:
             final_string += ' L'
         else:
             raise ValueError('Invalid Move?? Something is very wrong')

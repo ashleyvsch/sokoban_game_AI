@@ -10,6 +10,8 @@ from global_constants import *
 from custom_errors import *
 from pathlib import Path
 import sys
+import box_checking
+import dead_locks
 
 class Sokoban:
     '''
@@ -39,14 +41,18 @@ class Sokoban:
         game_size = map(int,self._initial_gamestate[0].split())
         self.num_rows, self.num_cols = game_size
         self.board = np.zeros(shape=(self.num_rows,self.num_cols), dtype=int) 
+        # print(self.board)
         # these will end up being lists of np arrays where the arrays are coordinates
-        self.walls = []
-        self.boxes = []
-        self.goals = []
+        # self.walls = []
+        # self.boxes = []
+        # self.goals = []
         # this is just a array of the agents current location
         self.agent = np.array([0,0])
 
         self.initialize_gamestate()
+
+        self.num_goals = int(self._initial_gamestate[2].split()[0])
+        self.num_boxes_on_goals = 0
         #----
         # self.rewards  = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
         # self.utilities = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
@@ -65,13 +71,30 @@ class Sokoban:
     # -------------------------------------------------------- #
 
     def is_terminal(self) -> bool:
-        '''
-        right now just checks for box on goal
-        '''
-        if BOX_ON_GOAL in self.board:
+        if self.is_terminal_because_deadlock() or self.is_terminal_because_goalstate():
+            # print('deadlock', self.is_terminal_because_deadlock())
+            # print('goal', self.is_terminal_because_goalstate())
             return True
         else:
             return False
+
+    def is_terminal_because_goalstate(self) -> bool:
+        if box_checking.is_all_boxes_on_goals(self.board, self.num_goals):
+            return True
+        else:
+            return False
+
+    def is_terminal_because_deadlock(self) -> bool:
+        '''
+        right now just checks for box on goal
+        '''
+        if dead_locks.dead_lock(self.board):
+            return True
+        else:
+            return False
+    
+    def update_num_boxes_on_goals(self) -> int:
+        self.num_boxes_on_goals = box_checking.check_box_on_goals(self.board)
         
     def move_agent(self, move: np.array):
         '''
@@ -112,18 +135,40 @@ class Sokoban:
             new_box_location = new_agent_state + action
             if self.board[new_box_location[0]][new_box_location[1]] == GOAL:
                 self.board[new_box_location[0]][new_box_location[1]] = BOX_ON_GOAL
-                return BOX_ON_GOAL
+                if box_checking.is_all_boxes_on_goals(self.board, self.num_goals):
+                    result = ALL_BOXES_ON_GOAL
+                else:
+                    if dead_locks.dead_lock(self.board):
+                        result = DEADLOCK
+                    else:
+                        result = BOX_ON_GOAL
             elif self.board[new_box_location[0]][new_box_location[1]] == OPEN:
                 self.board[new_box_location[0]][new_box_location[1]] = BOX
-                return BOX
+                if dead_locks.dead_lock(self.board):
+                    result = DEADLOCK
+                else:
+                    result = BOX
             elif self.board[new_box_location[0]][new_box_location[1]] == WALL:
+                print(self.board_with_agent())
+                print('I am trying action', action)
+                print('valid actions', self.valid_actions)
+                print('current agent state', self.agent)
+                print('new agent state', new_agent_state)
                 raise BoxMoveError
         elif self.board[new_agent_state[0]][new_agent_state[1]] == BOX_ON_GOAL:
             self.board[new_agent_state[0]][new_agent_state[1]] = GOAL
             new_box_location = new_agent_state + action
-            self.board[new_box_location[0]][new_box_location[1]] = BOX
-            return GOAL
-        return OPEN
+            if self.board[new_box_location[0]][new_box_location[1]] == GOAL:
+                self.board[new_box_location[0]][new_box_location[1]] = BOX_ON_GOAL
+                result = BOX_ON_GOAL
+            else:
+                self.board[new_box_location[0]][new_box_location[1]] = BOX
+                result = GOAL
+        else:
+            result = OPEN
+
+        self.valid_actions = self._get_valid_actions()
+        return result
         
     def is_valid_action(self, action: np.array) -> bool:
         '''
@@ -143,6 +188,91 @@ class Sokoban:
             if box_state_given_action_board_value == OPEN or box_state_given_action_board_value == GOAL:
                 return True
             else: return False
+    
+    def _get_valid_actions(self) -> dict:
+
+        current_agent_location = np.copy(self.agent)
+        valid_action = {}
+
+        # check going up 
+        resulting_location = current_agent_location + UP
+        box_resulting_location = current_agent_location + 2*UP
+        if (self.board[resulting_location[0], resulting_location[1]] ==  WALL):
+            pass
+        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
+                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
+            valid_action[1] = UP
+            # valid_action.append(UP)
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
+            valid_action[5] = BOX_UP
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[5] = BOX_UP 
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[5] = BOX_UP       
+            # valid_action.append(BOX_UP)
+        
+        # check going down
+        resulting_location = current_agent_location + DOWN
+        box_resulting_location = current_agent_location + 2*DOWN
+        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
+            pass
+        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
+                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
+            valid_action[2] = DOWN
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
+            valid_action[6] = BOX_DOWN
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[6] = BOX_DOWN     
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[6] = BOX_DOWN    
+
+        # check going left
+        resulting_location = current_agent_location + LEFT
+        box_resulting_location = current_agent_location + 2*LEFT
+        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
+            pass
+        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
+                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
+            valid_action[4] = LEFT
+            # valid_action.append(LEFT)
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
+            valid_action[8] = BOX_LEFT
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[8] = BOX_LEFT
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[8] = BOX_LEFT
+            # valid_action.append(BOX_LEFT)
+
+        # check going right 
+        resulting_location = current_agent_location + RIGHT
+        box_resulting_location = current_agent_location + 2*RIGHT
+        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
+            pass
+        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
+                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
+            valid_action[3] = RIGHT
+             # valid_action.append(RIGHT)
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
+            valid_action[7] = BOX_RIGHT
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[7] = BOX_RIGHT
+        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
+                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
+            valid_action[7] = BOX_RIGHT
+            # valid_action.append(BOX_RIGHT)
+
+        return valid_action
 
     def initialize_gamestate(self):
         '''
@@ -164,6 +294,7 @@ class Sokoban:
         self._setup_goal(self._initial_gamestate[3])
         # fifth element is the agents location
         self._setup_agent(self._initial_gamestate[4])
+        self.valid_actions = self._get_valid_actions()
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 
@@ -216,10 +347,10 @@ class Sokoban:
         wall_squares = wall_info.split()
         num_wall_squares = int(wall_squares.pop(0))
         for i in range(0, 2*num_wall_squares, 2):
-            x = int(wall_squares[i]) - 1
-            y = int(wall_squares[i+1]) - 1
-            self.board[x][y] = WALL 
-            self.walls.append(np.array([x, y]))
+            x = int(wall_squares[i]) 
+            y = int(wall_squares[i+1]) 
+            self.board[x-1][y-1] = WALL 
+            # self.walls.append(np.array([x, y]))
 
     def _setup_boxes(self, box_info: str):
         '''
@@ -232,7 +363,7 @@ class Sokoban:
             x = int(box_squares[i]) 
             y = int(box_squares[i+1]) 
             self.board[x-1][y-1] = BOX
-            self.boxes.append(np.array([x, y]))
+            # self.boxes.append(np.array([x, y]))
 
     def _setup_goal(self, goal_info: str):
         '''
@@ -245,7 +376,7 @@ class Sokoban:
             x = int(goal_squares[i])
             y = int(goal_squares[i+1])
             self.board[x-1][y-1] = GOAL
-            self.goals.append(np.array([x, y]))
+            # self.goals.append(np.array([x-1, y-1]))
     
     def _setup_agent(self, agent_info: str):
         '''
