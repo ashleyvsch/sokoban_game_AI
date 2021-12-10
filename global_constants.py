@@ -7,15 +7,15 @@ import numpy as np
 # Feel free to modify these constants to test the algorithm
 # --------------------------------------------------------
 
-GAMMA = 0.8
+GAMMA = 0.99
 ALPHA = 0.01
 EPSILON = 0.1
 
 MOVE_PENALTY = -0.1
-MOVE_BOX_REWARD = -0.1    
-BOX_ON_GOAL_REWARD = 0.5
-SOLVE_GAME_REWARD = 4
-DEADLOCK_PENALTY = -1
+MOVE_BOX_REWARD = -0.1
+BOX_ON_GOAL_REWARD = 1
+SOLVE_GAME_REWARD = 2 
+DEADLOCK_PENALTY = -0.5
 
 '''
 Note on gamma:
@@ -61,13 +61,3 @@ BOX_DOWN = np.array([1, 0])
 BOX_RIGHT = np.array([0, 1])
 BOX_LEFT = np.array([0, -1])
 STAY = np.array([0, 0])
-
-
-# was being used to check if q values blow up to stop them from 
-# getting too large, but it isn't being used anywhere right now
-PRECISION = 1E20
-
-# just used to check for optimal policy... sometimes if the q table
-# is messed and the actions aren't really optimal it will take lots
-# of steps... just a safety measure
-MAX_STEPS_ALLOWED_FOR_OPTIMAL = 30

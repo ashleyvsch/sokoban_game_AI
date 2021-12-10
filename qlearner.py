@@ -1,3 +1,8 @@
+'''
+A class that defines the learning process for a sokoban agent
+This is the parent class that inherits a child of type Sokoban
+'''
+
 from custom_errors import *
 from sokoban import Sokoban
 from global_constants import *
@@ -23,40 +28,6 @@ class QLearner(Sokoban):
         self.q_table = self._setup_q_table()
         self.frequency_table = self._setup_frequencies()
         self.epsilon = EPSILON
-    
-    def get_optimal_policy(self) -> np.array:
-        '''
-        Determine the optimal policy as defined by the determined q table
-        '''
-
-        self.initialize_gamestate()
-
-        all_actions = []
-
-        steps = 0
-        while not self.is_terminal() and steps < MAX_STEPS_ALLOWED_FOR_OPTIMAL:
-
-            # get maximum q value given a state index and get back
-            # action index that has maximum q
-            action_maximizing_q = self._exploit_action()
-
-            all_actions.append(action_maximizing_q)
-
-            # move the agent using action that maximizes q
-            if self.is_valid_action(action_maximizing_q):
-                self.take_action(action_maximizing_q)
-            else:
-                print('Agent keeps going to same place, probably did not find optimal')
-                raise NotOptimalAction
-
-            steps+=1
-
-            if steps > MAX_STEPS_ALLOWED_FOR_OPTIMAL:
-                print('There are too many steps, propably did not find optimal')
-                raise NotOptimalAction
-        
-        return all_actions
-
 
     def observe_action(self, action: int) -> tuple[float, np.array]:
         '''
@@ -72,14 +43,6 @@ class QLearner(Sokoban):
         value_of_new_state = self.take_action(self.valid_actions[action])
         reward = self._determine_reward(value_of_new_state)
         new_state = self.agent 
-        # if self.is_valid_action(action):
-        #     value_of_new_state = self.take_action(action)
-        #     reward = self._determine_reward(value_of_new_state)
-        #     new_state = self.agent 
-        # else:
-        #     # if the action isn't valid the agent stays in the same place
-        #     new_state = self.agent
-        #     reward = self._determine_reward(NO_MOVE)
         return reward, new_state
 
     def epsilon_greedy(self) -> np.array:
@@ -112,45 +75,30 @@ class QLearner(Sokoban):
 
         # get Q(s,a)
         q_s_a = self.q_table[current_state_index, action_index]
-        # print(action_index)
+
         # get max a' Q(s', a')
         q_values_for_new_state = self._get_q_values(new_state_index)
         max_q_value = max(q_values_for_new_state.values())
 
-        # for some reason the frequency table fucks everything up ?????
-        # - it makes q values get insanely large
-        # - oh im an idiot-- its because is should be alpha(n_s_a) where alpha is a 
-        #   function lol
-        # new_q_value = q_s_a + (ALPHA*n_s_a) * (reward + GAMMA * max_q_value - q_s_a)
-        # with all this being said:
-        # TODO:
-        # create a function alpha(N[s,a]) to increment alpha based on the number
-        # of times the agent has done a state action pair. this will help penalize
-        # the agent for repeating the same actions
-
+        # if you want to try to increment alpha based on the 
+        # state frequency, use this q update:
+        # --------------        
         # alpha = self.alpha_of_n(n_s_a)
         # new_q_value = q_s_a + (alpha) * (reward + GAMMA * max_q_value - q_s_a)
-        new_q_value = q_s_a + (ALPHA) * (reward + GAMMA * max_q_value - q_s_a)
+        # --------------
 
-        if np.isnan(new_q_value) or np.isinf(new_q_value):
-            pass
-        elif new_q_value > PRECISION or new_q_value < -PRECISION:
-            pass
-            # raise ValuesTooBigError
-        else:
-            self.q_table[current_state_index][action_index] = new_q_value
+        new_q_value = q_s_a + (ALPHA) * (reward + GAMMA * max_q_value - q_s_a)
+        self.q_table[current_state_index][action_index] = new_q_value
 
     # -------------------------------------------------------- #
     # ----------- These are private methods! ----------------- #
     # -------------------------------------------------------- #
 
-    # def max_q__s_prime_a_prime(self, current_state):
-    #     possible_actions = [UP, DOWN, LEFT, RIGHT]
-    #     for action in possible_actions:
-    #         new_state = 
-    #     pass
-
     def alpha_of_n(self, n) -> float:
+        '''
+        A function to determine a learning rate parameter based on 
+        the state frequency -- feel free to change if you wish
+        '''
         return 60/(120+n)
 
     def _determine_reward(self, value: BoardValue) -> float:
@@ -191,8 +139,6 @@ class QLearner(Sokoban):
         state_key = self._get_state_index(current_state)
         q_values = self._get_q_values(state_key)
 
-        # valid_actions = self.valid_actions
-        # first_action_index = self._get_action_index(valid_actions[0])
         valid_current_keys = list(self.valid_actions.keys())
         first_action_index = valid_current_keys[0]
 
@@ -201,9 +147,6 @@ class QLearner(Sokoban):
             return self._get_random_action()
         else:
             max_key = max(q_values, key=q_values.get)
-            # print('q vals', q_values)
-            # print('max:', max_key)
-            # return self.valid_actions[max_key]
             return max_key
         
     def _get_q_values(self, state_index: int) -> dict:
@@ -215,7 +158,6 @@ class QLearner(Sokoban):
         q_table = self.q_table
         q_value_dict = {}
         for action_key in self.valid_actions:
-            # action_index = self._get_action_index(action)
             q_value_dict[action_key] = q_table[state_index][action_key]
         return q_value_dict
 
@@ -250,59 +192,9 @@ class QLearner(Sokoban):
         choose a random action - numbered 1 through 4 where 1 = up, 2 = down,
         3 = left, 4 = right
         '''
-        # valid_actions = self.valid_actions
-        # action_indices = []
-        # for action in valid_actions:
-        #     action_index = self._get_action_index(action)
-        #     action_indices.append(action_index)
-        # value = choice(list(action_indices)
-        # action = self._return_action_given_key(value)
         action = choice(list(self.valid_actions.keys()))
-        # return self.valid_actions[action]
         return action
 
-    def _return_action_given_key(self, action_index: int) -> np.array:
-        '''
-        return the action given the key index where 1 = up, 2 = down,
-        3 = left, 4 = right
-        '''
-        if action_index == 1:
-            return UP
-        elif action_index == 2:
-            return DOWN
-        elif action_index == 3:
-            return RIGHT
-        elif action_index == 4:
-            return LEFT
-        elif action_index == 5:
-            return BOX_UP
-        elif action_index == 6:
-            return BOX_DOWN
-        elif action_index == 7:
-            return BOX_RIGHT 
-        elif action_index == 8:
-            return BOX_LEFT
-
-    def _get_action_index(self, action: np.array) -> int:
-        '''
-        Return the integer index for a given action which is an np.array
-        '''
-        if np.array_equal(action, UP):
-            return 1
-        elif np.array_equal(action, DOWN):
-            return 2
-        elif np.array_equal(action, LEFT):
-            return 3 
-        elif np.array_equal(action, RIGHT):
-            return 4
-        elif np.array_equal(action, BOX_RIGHT):
-            return 5
-        elif np.array_equal(action, BOX_DOWN):
-            return 6
-        elif np.array_equal(action, BOX_LEFT):
-            return 7 
-        elif np.array_equal(action, BOX_RIGHT):
-            return 8
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 

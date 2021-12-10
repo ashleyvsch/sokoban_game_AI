@@ -1,8 +1,7 @@
 '''
-The bulk of the project design is within the Sokoban class. Here, we control the board,
-the agent, the utilities, rewards, and everything! The object of the class can be updated
-using public methods. Some things aren't meant to change (walls, goal locations, rewards) 
-and some things definitely are (agent location, utility values, box locations)
+Here, we control the board,the agent, the actions! The object of the class can be updated
+using public methods. Some things aren't meant to change (walls, goal locations) 
+and some things definitely are (agent location, box locations)
 '''
 
 import numpy as np
@@ -41,26 +40,13 @@ class Sokoban:
         game_size = map(int,self._initial_gamestate[0].split())
         self.num_rows, self.num_cols = game_size
         self.board = np.zeros(shape=(self.num_rows,self.num_cols), dtype=int) 
-        # print(self.board)
-        # these will end up being lists of np arrays where the arrays are coordinates
-        # self.walls = []
-        # self.boxes = []
-        # self.goals = []
-        # this is just a array of the agents current location
+
         self.agent = np.array([0,0])
 
         self.initialize_gamestate()
 
         self.num_goals = int(self._initial_gamestate[2].split()[0])
         self.num_boxes_on_goals = 0
-        #----
-        # self.rewards  = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
-        # self.utilities = np.zeros(shape=(self.num_rows,self.num_cols), dtype=float)
-        #----
-        # reward are setup depending on the state of the board so it is 
-        # initialized last
-        # self._setup_rewards()
-        # self._setup_utilities()
 
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
@@ -71,14 +57,20 @@ class Sokoban:
     # -------------------------------------------------------- #
 
     def is_terminal(self) -> bool:
+        ''' 
+        Terminal if there is a deadlock or you the 
+        board has been solved
+        '''
         if self.is_terminal_because_deadlock() or self.is_terminal_because_goalstate():
-            # print('deadlock', self.is_terminal_because_deadlock())
-            # print('goal', self.is_terminal_because_goalstate())
             return True
         else:
             return False
 
     def is_terminal_because_goalstate(self) -> bool:
+        '''
+        If all the boxes are on the goals, the agent 
+        has solved the board
+        '''
         if box_checking.is_all_boxes_on_goals(self.board, self.num_goals):
             return True
         else:
@@ -86,7 +78,9 @@ class Sokoban:
 
     def is_terminal_because_deadlock(self) -> bool:
         '''
-        right now just checks for box on goal
+        Deadlock occurs when a box is pushed somewhere that 
+        makes the board unsolvable no matter what the agent
+        does
         '''
         if dead_locks.dead_lock(self.board):
             return True
@@ -117,8 +111,8 @@ class Sokoban:
     
     def take_action(self, action) -> int:
         '''
-        Change the game state based on the action
-        - Note this function wouldn't really be called if the action is stay
+        Change the game board based on an action and return the result
+        of the action
         - If the agent moves to a box, we move that box. It is already checked
           previously that the mox movement is allowed
         - This returns an integer relating to the agents move:
@@ -126,54 +120,60 @@ class Sokoban:
             BOX:            moved a box to an open space (good!)
             BOX_ON_GOAL:    moved a box onto a goal (really good!)
             GOAL:           moved a box off a goal, so not it is in a goal space (bad!) 
-        
         '''
         new_agent_state = self.move_agent(action)
         
+        # if the agent is moving a box, we have to determine
+        # if the box is on a goal or not
         if self.board[new_agent_state[0]][new_agent_state[1]] == BOX:
             self.board[new_agent_state[0]][new_agent_state[1]] = OPEN
             new_box_location = new_agent_state + action
             if self.board[new_box_location[0]][new_box_location[1]] == GOAL:
                 self.board[new_box_location[0]][new_box_location[1]] = BOX_ON_GOAL
                 if box_checking.is_all_boxes_on_goals(self.board, self.num_goals):
+                    # agent has moved a box to solve the board
                     result = ALL_BOXES_ON_GOAL
                 else:
                     if dead_locks.dead_lock(self.board):
+                        # agent has pushed a box to a deadlock
                         result = DEADLOCK
                     else:
+                        # agent has put a box on a goal
                         result = BOX_ON_GOAL
             elif self.board[new_box_location[0]][new_box_location[1]] == OPEN:
                 self.board[new_box_location[0]][new_box_location[1]] = BOX
                 if dead_locks.dead_lock(self.board):
+                    # agent has pushed a box to a deadlock
                     result = DEADLOCK
                 else:
+                    # agent has successfully moved a box
                     result = BOX
             elif self.board[new_box_location[0]][new_box_location[1]] == WALL:
-                print(self.board_with_agent())
-                print('I am trying action', action)
-                print('valid actions', self.valid_actions)
-                print('current agent state', self.agent)
-                print('new agent state', new_agent_state)
                 raise BoxMoveError
         elif self.board[new_agent_state[0]][new_agent_state[1]] == BOX_ON_GOAL:
+            # tha agent is moving a box off the goal 
             self.board[new_agent_state[0]][new_agent_state[1]] = GOAL
             new_box_location = new_agent_state + action
             if self.board[new_box_location[0]][new_box_location[1]] == GOAL:
                 self.board[new_box_location[0]][new_box_location[1]] = BOX_ON_GOAL
+                # the case when an agent is moving a box from one goal
+                # to another
                 result = BOX_ON_GOAL
             else:
+                # the agent is moving a box off a goal
                 self.board[new_box_location[0]][new_box_location[1]] = BOX
                 result = GOAL
         else:
+            # just a normal move
             result = OPEN
 
         self.valid_actions = self._get_valid_actions()
+
         return result
         
     def is_valid_action(self, action: np.array) -> bool:
         '''
-        determines valid actions for a particular state, if an action to move is
-        not valid, then the action is STAY
+        determines valid actions for a particular state
         '''
         current_agent_location = self.agent
         state_given_action = current_agent_location + action
@@ -190,87 +190,29 @@ class Sokoban:
             else: return False
     
     def _get_valid_actions(self) -> dict:
+        '''
+        Get the valid actions for an agent from a particular board location
+        and return a dictionary of the valid actions
+        '''
 
         current_agent_location = np.copy(self.agent)
         valid_action = {}
 
-        # check going up 
-        resulting_location = current_agent_location + UP
-        box_resulting_location = current_agent_location + 2*UP
-        if (self.board[resulting_location[0], resulting_location[1]] ==  WALL):
-            pass
-        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
-                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
-            valid_action[1] = UP
-            # valid_action.append(UP)
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
-            valid_action[5] = BOX_UP
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[5] = BOX_UP 
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[5] = BOX_UP       
-            # valid_action.append(BOX_UP)
-        
-        # check going down
-        resulting_location = current_agent_location + DOWN
-        box_resulting_location = current_agent_location + 2*DOWN
-        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
-            pass
-        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
-                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
-            valid_action[2] = DOWN
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
-            valid_action[6] = BOX_DOWN
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[6] = BOX_DOWN     
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[6] = BOX_DOWN    
+        possible_actions = [UP, DOWN, RIGHT, LEFT, BOX_UP, BOX_DOWN, BOX_RIGHT, BOX_LEFT]
 
-        # check going left
-        resulting_location = current_agent_location + LEFT
-        box_resulting_location = current_agent_location + 2*LEFT
-        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
-            pass
-        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
-                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
-            valid_action[4] = LEFT
-            # valid_action.append(LEFT)
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
-            valid_action[8] = BOX_LEFT
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[8] = BOX_LEFT
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[8] = BOX_LEFT
-            # valid_action.append(BOX_LEFT)
-
-        # check going right 
-        resulting_location = current_agent_location + RIGHT
-        box_resulting_location = current_agent_location + 2*RIGHT
-        if self.board[resulting_location[0], resulting_location[1]] ==  WALL:
-            pass
-        elif (self.board[resulting_location[0], resulting_location[1]] == OPEN
-                or self.board[resulting_location[0], resulting_location[1]] == GOAL):
-            valid_action[3] = RIGHT
-             # valid_action.append(RIGHT)
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == OPEN):
-            valid_action[7] = BOX_RIGHT
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[7] = BOX_RIGHT
-        elif (self.board[resulting_location[0], resulting_location[1]] == BOX_ON_GOAL
-                and self.board[box_resulting_location[0], box_resulting_location[1]] == GOAL):
-            valid_action[7] = BOX_RIGHT
-            # valid_action.append(BOX_RIGHT)
+        for i in range(1,5):
+            action = possible_actions[i-1]
+            possible_location_index = current_agent_location + action
+            possible_location = self.board[possible_location_index[0], possible_location_index[1]]
+            if possible_location != WALL:
+                box_resulting_location_index = current_agent_location + 2*action
+                possible_box_location = self.board[box_resulting_location_index[0], box_resulting_location_index[1]]
+                if possible_location == OPEN or possible_location == GOAL:
+                    valid_action[i] = action
+                elif ((possible_location == BOX and possible_box_location == OPEN) 
+                        or (possible_location == BOX and possible_box_location == GOAL)
+                        or (possible_location == BOX_ON_GOAL and possible_box_location == GOAL)):
+                    valid_action[i+4] = action
 
         return valid_action
 
@@ -295,6 +237,7 @@ class Sokoban:
         # fifth element is the agents location
         self._setup_agent(self._initial_gamestate[4])
         self.valid_actions = self._get_valid_actions()
+
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 
@@ -350,7 +293,6 @@ class Sokoban:
             x = int(wall_squares[i]) 
             y = int(wall_squares[i+1]) 
             self.board[x-1][y-1] = WALL 
-            # self.walls.append(np.array([x, y]))
 
     def _setup_boxes(self, box_info: str):
         '''
@@ -363,7 +305,6 @@ class Sokoban:
             x = int(box_squares[i]) 
             y = int(box_squares[i+1]) 
             self.board[x-1][y-1] = BOX
-            # self.boxes.append(np.array([x, y]))
 
     def _setup_goal(self, goal_info: str):
         '''
@@ -376,7 +317,6 @@ class Sokoban:
             x = int(goal_squares[i])
             y = int(goal_squares[i+1])
             self.board[x-1][y-1] = GOAL
-            # self.goals.append(np.array([x-1, y-1]))
     
     def _setup_agent(self, agent_info: str):
         '''
@@ -386,49 +326,7 @@ class Sokoban:
         agent_square = agent_info.split()
         agent_square = map(int,agent_square)
         x, y = agent_square
-        # self.board[x-1][y-1] = AGENT
         self.agent = np.array([x-1, y-1])
-
-                
-    # -------------------------------------------------------- #
-    # ------------ Not needed for Q-learning! ---------------- #
-    # -------------------------------------------------------- #
-    
-    # def _setup_utilities(self) -> None:
-    #     ''' not needed for q-learning '''
-    #     for m in range(self.num_rows):
-    #         for n in range(self.num_cols):
-    #             board_index = self.board[m][n]
-    #             if board_index == WALL:
-    #                 self.utilities[m][n] = np.nan
-    
-    # def _setup_rewards(self) -> None:
-    #     ''' not needed for q-learning '''
-    #     for m in range(self.num_rows):
-    #         for n in range(self.num_cols):
-    #             board_index = self.board[m][n]
-    #             if board_index == OPEN or board_index == AGENT:
-    #                 self.rewards[m][n] = -1
-    #             elif board_index == GOAL:
-    #                 self.rewards[m][n] = 1
-    #             else:
-    #                 self.rewards[m][n] = 0
-    #             # if board_index == WALL:
-    #             #     self.rewards[m][n] = 0
-    #             # if board_index == BOX:
-    #             #     self.rewards[m][n] = 0 # for now 
-
-    # def update_utility(self, state: np.array, new_value: float):
-    #     self.utilities[state[0] -1][state[1]-1] = new_value
-    #     return self.utilities
-
-    # def agent_in_goal(self) -> bool:
-    # for goal in self.goals:
-    #     if np.array_equal(self.agent, goal):
-    #         return True
-    #     else:
-    #         return False
-
     # -------------------------------------------------------- #
     # -------------------------------------------------------- #
 
