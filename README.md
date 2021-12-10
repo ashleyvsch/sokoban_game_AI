@@ -9,11 +9,13 @@ root directory on the command line:
 First activate the virtual environment and install dependencies:
 [on macOS use `python3` not `python`]
 
-`$ cd env/bin`
-`$ source activate`
-`$ cd ../..`
-`$ python -m pip install --upgrade pip`
-`$ pip install numpy`
+```
+$ cd env/bin
+$ source activate
+$ cd ../..
+$ python -m pip install --upgrade pip
+$ pip install numpy
+```
 
 Next run the program by choosing from any board located in
 the data folder [the test will run 1000 trials to find the 
@@ -23,8 +25,10 @@ best possible solution within that timeframe]:
 
 Example run:
 
-`$ python main.py my_trials_01.txt`
-`13 R R U L R R R D L L U L D`
+```
+$ python main.py my_trials_01.txt
+13 R R U L R R R D L L U L D
+```
 
 Choices are:
 
